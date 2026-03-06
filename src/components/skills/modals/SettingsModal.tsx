@@ -1,6 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import type { TFunction } from 'i18next'
 
+export type LlmConfig = {
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
 type SettingsModalProps = {
   open: boolean
   isTauri: boolean
@@ -9,12 +15,14 @@ type SettingsModalProps = {
   gitCacheCleanupDays: number
   gitCacheTtlSecs: number
   themePreference: 'system' | 'light' | 'dark'
+  llmConfig: LlmConfig
   onPickStoragePath: () => void
   onToggleLanguage: () => void
   onThemeChange: (nextTheme: 'system' | 'light' | 'dark') => void
   onGitCacheCleanupDaysChange: (nextDays: number) => void
   onGitCacheTtlSecsChange: (nextSecs: number) => void
   onClearGitCacheNow: () => void
+  onLlmConfigChange: (cfg: LlmConfig) => void
   onRequestClose: () => void
   t: TFunction
 }
@@ -27,16 +35,26 @@ const SettingsModal = ({
   gitCacheCleanupDays,
   gitCacheTtlSecs,
   themePreference,
+  llmConfig,
   onPickStoragePath,
   onToggleLanguage,
   onThemeChange,
   onGitCacheCleanupDaysChange,
   onGitCacheTtlSecsChange,
   onClearGitCacheNow,
+  onLlmConfigChange,
   onRequestClose,
   t,
 }: SettingsModalProps) => {
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [llmDraft, setLlmDraft] = useState<LlmConfig>(llmConfig)
+  const [testingConnection, setTestingConnection] = useState(false)
+  const [testResult, setTestResult] = useState<{
+    success: boolean
+    message: string
+    latency?: number
+  } | null>(null)
+
   const versionText = useMemo(() => {
     if (!isTauri) return t('notAvailable')
     if (!appVersion) return t('unknown')
@@ -62,8 +80,103 @@ const SettingsModal = ({
       setAppVersion(null)
       return
     }
+    setLlmDraft(llmConfig)
+    setTestResult(null)
     void loadAppVersion()
-  }, [loadAppVersion, open])
+  }, [loadAppVersion, open, llmConfig])
+
+  const handleLlmBlur = useCallback(() => {
+    onLlmConfigChange(llmDraft)
+  }, [llmDraft, onLlmConfigChange])
+
+  const handleTestConnection = useCallback(async () => {
+    const { baseUrl, apiKey, model } = llmDraft
+    if (!baseUrl || !apiKey || !model) {
+      setTestResult({
+        success: false,
+        message: '请先填写完整的 API 配置',
+      })
+      return
+    }
+
+    setTestingConnection(true)
+    setTestResult(null)
+    const startTime = Date.now()
+
+    try {
+      const endpoint = baseUrl.replace(/\/$/, '') + '/chat/completions'
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout for test
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'user',
+              content: 'Hi',
+            },
+          ],
+          max_tokens: 5,
+        }),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+      const latency = Date.now() - startTime
+
+      if (!resp.ok) {
+        const errText = await resp.text()
+        setTestResult({
+          success: false,
+          message: `连接失败: HTTP ${resp.status}\n${errText.substring(0, 200)}`,
+        })
+        return
+      }
+
+      // Try to parse response
+      await resp.json()
+
+      setTestResult({
+        success: true,
+        message: '连接成功！API 配置正确。',
+        latency,
+      })
+    } catch (err) {
+      const latency = Date.now() - startTime
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          setTestResult({
+            success: false,
+            message: '连接超时（>10秒），请检查网络或 Base URL',
+            latency,
+          })
+        } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+          setTestResult({
+            success: false,
+            message: `网络错误，无法连接到:\n${baseUrl}\n\n请检查 Base URL 和网络连接`,
+          })
+        } else {
+          setTestResult({
+            success: false,
+            message: err.message,
+          })
+        }
+      } else {
+        setTestResult({
+          success: false,
+          message: String(err),
+        })
+      }
+    } finally {
+      setTestingConnection(false)
+    }
+  }, [llmDraft])
 
   if (!open) return null
 
@@ -234,6 +347,77 @@ const SettingsModal = ({
               />
             </div>
             <div className="settings-helper">{t('gitCacheTtlHint')}</div>
+          </div>
+
+          {/* LLM Configuration */}
+          <div className="settings-section-title">{t('llm.sectionTitle')}</div>
+          <div className="settings-helper settings-llm-hint">{t('llm.hint')}</div>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="settings-llm-base-url">
+              {t('llm.baseUrl')}
+            </label>
+            <input
+              id="settings-llm-base-url"
+              className="settings-input mono"
+              type="text"
+              placeholder="https://api.openai.com/v1"
+              value={llmDraft.baseUrl}
+              onChange={(e) => setLlmDraft((d) => ({ ...d, baseUrl: e.target.value }))}
+              onBlur={handleLlmBlur}
+            />
+          </div>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="settings-llm-api-key">
+              {t('llm.apiKey')}
+            </label>
+            <input
+              id="settings-llm-api-key"
+              className="settings-input mono"
+              type="password"
+              placeholder="sk-..."
+              value={llmDraft.apiKey}
+              onChange={(e) => setLlmDraft((d) => ({ ...d, apiKey: e.target.value }))}
+              onBlur={handleLlmBlur}
+            />
+          </div>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="settings-llm-model">
+              {t('llm.model')}
+            </label>
+            <input
+              id="settings-llm-model"
+              className="settings-input mono"
+              type="text"
+              placeholder="gpt-4o-mini"
+              value={llmDraft.model}
+              onChange={(e) => setLlmDraft((d) => ({ ...d, model: e.target.value }))}
+              onBlur={handleLlmBlur}
+            />
+            <div className="settings-helper">{t('llm.modelHint')}</div>
+          </div>
+
+          <div className="settings-field">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => void handleTestConnection()}
+              disabled={testingConnection}
+            >
+              {testingConnection ? '测试中...' : t('llm.testConnection')}
+            </button>
+            {testResult && (
+              <div className={`settings-test-result ${testResult.success ? 'success' : 'error'}`}>
+                <div className="test-result-message">{testResult.message}</div>
+                {testResult.latency !== undefined && (
+                  <div className="test-result-latency">
+                    延迟: {testResult.latency}ms
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="settings-version">

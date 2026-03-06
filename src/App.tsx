@@ -14,6 +14,8 @@ import ImportModal from './components/skills/modals/ImportModal'
 import NewToolsModal from './components/skills/modals/NewToolsModal'
 import SharedDirModal from './components/skills/modals/SharedDirModal'
 import SettingsModal from './components/skills/modals/SettingsModal'
+import type { LlmConfig } from './components/skills/modals/SettingsModal'
+import SkillPreviewModal from './components/skills/modals/SkillPreviewModal'
 import type {
   GitSkillCandidate,
   InstallResultDto,
@@ -78,6 +80,34 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'updated' | 'name'>('updated')
   const [addModalTab, setAddModalTab] = useState<'local' | 'git'>('git')
+
+  // Skill remarks: skillId -> remark string
+  const remarksStorageKey = 'skills-remarks'
+  const [remarks, setRemarks] = useState<Record<string, string>>(() => {
+    try {
+      const stored = window.localStorage.getItem(remarksStorageKey)
+      return stored ? (JSON.parse(stored) as Record<string, string>) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  // LLM config (OpenAI-compatible)
+  const llmStorageKey = 'skills-llm-config'
+  const [llmConfig, setLlmConfig] = useState<LlmConfig>(() => {
+    try {
+      const stored = window.localStorage.getItem(llmStorageKey)
+      return stored
+        ? (JSON.parse(stored) as LlmConfig)
+        : { baseUrl: '', apiKey: '', model: '' }
+    } catch {
+      return { baseUrl: '', apiKey: '', model: '' }
+    }
+  })
+
+  // Skill preview modal
+  const [previewSkill, setPreviewSkill] = useState<ManagedSkill | null>(null)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
 
   const isTauri =
     typeof window !== 'undefined' &&
@@ -539,6 +569,41 @@ function App() {
   const handleCloseDelete = useCallback(() => {
     if (!loading) setPendingDeleteId(null)
   }, [loading])
+
+  const handleOpenPreview = useCallback((skill: ManagedSkill) => {
+    setPreviewSkill(skill)
+    setShowPreviewModal(true)
+  }, [])
+
+  const handleClosePreview = useCallback(() => {
+    setShowPreviewModal(false)
+  }, [])
+
+  const handleRemarkSave = useCallback((skillId: string, remark: string) => {
+    setRemarks((prev) => {
+      const next = { ...prev }
+      if (remark) {
+        next[skillId] = remark
+      } else {
+        delete next[skillId]
+      }
+      try {
+        window.localStorage.setItem(remarksStorageKey, JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }, [])
+
+  const handleLlmConfigChange = useCallback((cfg: LlmConfig) => {
+    setLlmConfig(cfg)
+    try {
+      window.localStorage.setItem(llmStorageKey, JSON.stringify(cfg))
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const handleCloseGitPick = useCallback(() => {
     if (!loading) setShowGitPickModal(false)
@@ -1561,6 +1626,7 @@ function App() {
             visibleSkills={visibleSkills}
             installedTools={installedTools}
             loading={loading}
+            remarks={remarks}
             getGithubInfo={getGithubInfo}
             getSkillSourceLabel={getSkillSourceLabel}
             formatRelative={formatRelative}
@@ -1568,6 +1634,8 @@ function App() {
             onUpdateSkill={handleUpdateSkill}
             onDeleteSkill={handleDeletePrompt}
             onToggleTool={handleToggleToolForSkill}
+            onPreviewSkill={handleOpenPreview}
+            onRemarkSave={handleRemarkSave}
             t={t}
           />
           </div>
@@ -1631,12 +1699,14 @@ function App() {
         gitCacheCleanupDays={gitCacheCleanupDays}
         gitCacheTtlSecs={gitCacheTtlSecs}
         themePreference={themePreference}
+        llmConfig={llmConfig}
         onPickStoragePath={handlePickStoragePath}
         onToggleLanguage={toggleLanguage}
         onThemeChange={handleThemeChange}
         onGitCacheCleanupDaysChange={handleGitCacheCleanupDaysChange}
         onGitCacheTtlSecsChange={handleGitCacheTtlSecsChange}
         onClearGitCacheNow={handleClearGitCacheNow}
+        onLlmConfigChange={handleLlmConfigChange}
         onRequestClose={handleCloseSettings}
         t={t}
       />
@@ -1684,6 +1754,21 @@ function App() {
         onToggleAll={handleToggleAllGitCandidates}
         onToggleCandidate={handleToggleGitCandidate}
         onInstall={handleInstallSelectedCandidates}
+        t={t}
+      />
+
+      <SkillPreviewModal
+        open={showPreviewModal}
+        skill={previewSkill}
+        remark={previewSkill ? (remarks[previewSkill.id] ?? '') : ''}
+        llmConfig={llmConfig}
+        isTauri={isTauri}
+        onRequestClose={handleClosePreview}
+        onRemarkSave={handleRemarkSave}
+        onContentUpdate={() => {
+          // Optionally refresh skills list after content update
+          // void loadManagedSkills()
+        }}
         t={t}
       />
       </div>

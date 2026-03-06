@@ -14,6 +14,7 @@ type SkillsListProps = {
   visibleSkills: ManagedSkill[]
   installedTools: ToolOption[]
   loading: boolean
+  remarks: Record<string, string>
   getGithubInfo: (url: string | null | undefined) => GithubInfo | null
   getSkillSourceLabel: (skill: ManagedSkill) => string
   formatRelative: (ms: number | null | undefined) => string
@@ -21,6 +22,8 @@ type SkillsListProps = {
   onUpdateSkill: (skill: ManagedSkill) => void
   onDeleteSkill: (skillId: string) => void
   onToggleTool: (skill: ManagedSkill, toolId: string) => void
+  onPreviewSkill: (skill: ManagedSkill) => void
+  onRemarkSave: (skillId: string, remark: string) => void
   t: TFunction
 }
 
@@ -29,6 +32,7 @@ const SkillsList = ({
   visibleSkills,
   installedTools,
   loading,
+  remarks,
   getGithubInfo,
   getSkillSourceLabel,
   formatRelative,
@@ -36,6 +40,8 @@ const SkillsList = ({
   onUpdateSkill,
   onDeleteSkill,
   onToggleTool,
+  onPreviewSkill,
+  onRemarkSave,
   t,
 }: SkillsListProps) => {
   return (
@@ -72,6 +78,7 @@ const SkillsList = ({
             <SkillCard
               key={skill.id}
               skill={skill}
+              remark={remarks[skill.id] ?? ''}
               installedTools={installedTools}
               loading={loading}
               getGithubInfo={getGithubInfo}
@@ -80,6 +87,8 @@ const SkillsList = ({
               onUpdate={onUpdateSkill}
               onDelete={onDeleteSkill}
               onToggleTool={onToggleTool}
+              onPreview={onPreviewSkill}
+              onRemarkSave={onRemarkSave}
               t={t}
             />
           ))}

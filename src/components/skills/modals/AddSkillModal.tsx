@@ -1,4 +1,5 @@
-import { memo } from 'react'
+import { memo, useState, useCallback } from 'react'
+import { Upload } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import type { ToolOption, ToolStatusDto } from '../types'
 
@@ -49,6 +50,53 @@ const AddSkillModal = ({
   onSubmit,
   t,
 }: AddSkillModalProps) => {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
+
+      if (!canClose) return
+
+      try {
+        // Get dropped files
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length === 0) return
+
+        // For Tauri, we can get the path from the file
+        const firstFile = files[0]
+
+        // Use FileReader to get path - this is a workaround for Tauri
+        // In Tauri, the file path is available via the path property
+        const filePath = (firstFile as any).path
+
+        if (filePath) {
+          onLocalPathChange(filePath)
+        } else {
+          // Fallback: show a message
+          console.warn('Could not get file path from drop event')
+        }
+      } catch (err) {
+        console.error('Error handling drop:', err)
+      }
+    },
+    [canClose, onLocalPathChange]
+  )
+
   if (!open) return null
 
   return (
@@ -94,21 +142,45 @@ const AddSkillModal = ({
             <>
               <div className="form-group">
                 <label className="label">{t('localFolder')}</label>
-                <div className="input-row">
-                  <input
-                    className="input"
-                    placeholder={t('localPathPlaceholder')}
-                    value={localPath}
-                    onChange={(event) => onLocalPathChange(event.target.value)}
-                  />
-                  <button
-                    className="btn btn-secondary input-action"
-                    type="button"
-                    onClick={onPickLocalPath}
-                    disabled={!canClose}
-                  >
-                    {t('browse')}
-                  </button>
+
+                {/* Drag and drop area */}
+                <div
+                  className={`drag-drop-area ${isDragging ? 'dragging' : ''} ${localPath ? 'has-value' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <div className="drag-drop-content">
+                    <Upload size={32} className="drag-drop-icon" />
+                    <div className="drag-drop-text">
+                      {localPath ? (
+                        <div className="drag-drop-path">{localPath}</div>
+                      ) : (
+                        <>
+                          <div className="drag-drop-primary">{t('dragDropFolder')}</div>
+                          <div className="drag-drop-secondary">{t('orClickBrowse')}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Traditional input row inside drag area */}
+                  <div className="input-row drag-drop-input-row">
+                    <input
+                      className="input"
+                      placeholder={t('localPathPlaceholder')}
+                      value={localPath}
+                      onChange={(event) => onLocalPathChange(event.target.value)}
+                    />
+                    <button
+                      className="btn btn-secondary input-action"
+                      type="button"
+                      onClick={onPickLocalPath}
+                      disabled={!canClose}
+                    >
+                      {t('browse')}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="form-group">

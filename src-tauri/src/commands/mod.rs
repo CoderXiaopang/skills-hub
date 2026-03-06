@@ -786,6 +786,28 @@ fn get_managed_skills_impl(store: &SkillStore) -> Result<Vec<ManagedSkillDto>, S
         .collect())
 }
 
+#[tauri::command]
+pub async fn read_skill_md(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read SKILL.md at: {}", path))
+    })
+    .await
+    .map_err(|err| err.to_string())?
+    .map_err(format_anyhow_error)
+}
+
+#[tauri::command]
+pub async fn write_skill_md(path: String, content: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        std::fs::write(&path, content)
+            .with_context(|| format!("Failed to write SKILL.md at: {}", path))
+    })
+    .await
+    .map_err(|err| err.to_string())?
+    .map_err(format_anyhow_error)
+}
+
 #[cfg(test)]
 #[path = "tests/commands.rs"]
 mod tests;

@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import { Box, Copy, Folder, Github, RefreshCw, Trash2 } from 'lucide-react'
+import { memo, useCallback, useRef, useState, useEffect } from 'react'
+import { Box, Copy, Eye, Folder, Github, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TFunction } from 'i18next'
 import type { ManagedSkill, ToolOption } from './types'
@@ -11,6 +11,7 @@ type GithubInfo = {
 
 type SkillCardProps = {
   skill: ManagedSkill
+  remark: string
   installedTools: ToolOption[]
   loading: boolean
   getGithubInfo: (url: string | null | undefined) => GithubInfo | null
@@ -19,11 +20,14 @@ type SkillCardProps = {
   onUpdate: (skill: ManagedSkill) => void
   onDelete: (skillId: string) => void
   onToggleTool: (skill: ManagedSkill, toolId: string) => void
+  onPreview: (skill: ManagedSkill) => void
+  onRemarkSave: (skillId: string, remark: string) => void
   t: TFunction
 }
 
 const SkillCard = ({
   skill,
+  remark,
   installedTools,
   loading,
   getGithubInfo,
@@ -32,8 +36,44 @@ const SkillCard = ({
   onUpdate,
   onDelete,
   onToggleTool,
+  onPreview,
+  onRemarkSave,
   t,
 }: SkillCardProps) => {
+  const [editingRemark, setEditingRemark] = useState(false)
+  const [remarkDraft, setRemarkDraft] = useState(remark)
+  const remarkInputRef = useRef<HTMLInputElement>(null)
+
+  // Sync remark when prop changes
+  useEffect(() => {
+    setRemarkDraft(remark)
+  }, [remark])
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (editingRemark && remarkInputRef.current) {
+      remarkInputRef.current.focus()
+      remarkInputRef.current.select()
+    }
+  }, [editingRemark])
+
+  const handleRemarkSave = useCallback(() => {
+    onRemarkSave(skill.id, remarkDraft.trim())
+    setEditingRemark(false)
+  }, [skill.id, remarkDraft, onRemarkSave])
+
+  const handleRemarkKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        handleRemarkSave()
+      } else if (e.key === 'Escape') {
+        setRemarkDraft(remark)
+        setEditingRemark(false)
+      }
+    },
+    [handleRemarkSave, remark],
+  )
+
   const typeKey = skill.source_type.toLowerCase()
   const iconNode = typeKey.includes('git') ? (
     <Github size={20} />
@@ -61,6 +101,31 @@ const SkillCard = ({
       <div className="skill-main">
         <div className="skill-header-row">
           <div className="skill-name">{skill.name}</div>
+          {editingRemark ? (
+            <input
+              ref={remarkInputRef}
+              className="skill-remark-input"
+              value={remarkDraft}
+              onChange={(e) => setRemarkDraft(e.target.value)}
+              onKeyDown={handleRemarkKeyDown}
+              onBlur={handleRemarkSave}
+              placeholder={t('preview.remarkPlaceholder')}
+              maxLength={60}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <button
+              className="skill-remark-btn"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditingRemark(true)
+              }}
+              title={t('preview.editRemark')}
+            >
+              {remark || <span className="skill-remark-placeholder">{t('preview.remarkPlaceholder')}</span>}
+            </button>
+          )}
         </div>
         <div className="skill-meta-row">
           {github ? (
@@ -126,6 +191,15 @@ const SkillCard = ({
         </div>
       </div>
       <div className="skill-actions-col">
+        <button
+          className="card-btn preview-action"
+          type="button"
+          onClick={() => onPreview(skill)}
+          aria-label={t('preview.title')}
+          title={t('preview.title')}
+        >
+          <Eye size={16} />
+        </button>
         <button
           className="card-btn primary-action"
           type="button"

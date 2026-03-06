@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-06
+
+### Added
+- **Skill Preview**: View SKILL.md content with built-in markdown viewer
+- **AI-Powered Translation**: Translate skill documentation to Chinese using OpenAI-compatible LLM APIs
+  - Support for any OpenAI-compatible API endpoint
+  - Connection testing before use
+  - Content length warnings for long documents
+  - Option to replace original file or keep both versions
+  - 120-second timeout for translation operations
+- **Custom Skill Notes**: Add personalized remarks/notes directly on skill cards for better organization
+  - Inline editing with click-to-edit interface
+  - Auto-save on Enter/blur, ESC to cancel
+  - Persistent storage in localStorage
+  - 60-character limit with visual feedback
+- **Drag & Drop Support**: Drag and drop local folders directly to add skills
+  - Visual feedback during drag operation
+  - Automatic path extraction from dropped files
+  - Works seamlessly with existing browse button
+- **LLM Configuration**: Comprehensive settings for AI translation
+  - Base URL, API Key, and Model configuration
+  - Connection testing with latency display
+  - Detailed error messages for troubleshooting
+  - Support for all OpenAI-compatible APIs (GPT-4, Claude, DeepSeek, etc.)
+- **Enhanced UI/UX**:
+  - Professional README with bilingual support (English/Chinese)
+  - Improved modal designs with better visual hierarchy
+  - Better error messaging throughout the application
+  - Scrollable settings page with proper overflow handling
+
+### Changed
+- Updated README to professional format with comprehensive documentation
+- Improved skill card layout with inline remark editing
+- Enhanced preview modal with translation capabilities
+- Better visual feedback for all user interactions
+
+### Fixed
+- Settings page scroll overflow issue
+- Translation timeout handling for long documents
+- Preview modal error display improvements
+
+### Technical
+- Added `read_skill_md` and `write_skill_md` Rust commands for file operations
+- Enhanced i18n resources with new translation keys
+- Improved CSS organization with new component styles
+- Better state management for remarks and LLM configuration
+
 ## [0.2.0] - 2026-02-01
 
 ### Added
